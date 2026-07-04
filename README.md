@@ -1,6 +1,6 @@
 # Tipsy
 
-A simple iOS tip calculator built with UIKit.
+A simple iOS tip calculator built with UIKit Programmatic.
 
 Enter a bill total, choose a tip percentage, pick how many people to split between, and tap **Calculate** to see the amount per person.
 
