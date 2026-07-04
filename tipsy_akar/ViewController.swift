@@ -27,7 +27,10 @@ extension UIColor {
 }
 
 class ViewController: UIViewController {
-    
+
+    private var selectedTipPercent = 10
+    private var splitCount = 2
+
     let textColor = UIColor(rgb: 0xff06B06B) // heavy Green
     let greenBackground = UIColor(rgb: 0xffD8F9EA) // light green
     let buttonsSize = UIFont.systemFont(ofSize: 35)
@@ -80,11 +83,11 @@ class ViewController: UIViewController {
     var tipStackView: UIStackView = {
         var tipStackView = UIStackView()
         tipStackView.axis = .horizontal
-        tipStackView.distribution = .fillProportionally
+        tipStackView.distribution = .equalSpacing
+        tipStackView.alignment = .center
+        tipStackView.spacing = 24
         tipStackView.translatesAutoresizingMaskIntoConstraints = false
-        
         return tipStackView
-        
     }()
     
     lazy var choosSplitLabel: UILabel = {
@@ -96,39 +99,11 @@ class ViewController: UIViewController {
         return choosSplitLabel
     }()
     
-    lazy var tipButtonOne: UIButton = {
-        var tipButton = UIButton(type: .system)
-        tipButton.setTitle("0%", for: .normal)
-        tipButton.setTitleColor(textColor, for: .normal)
-        tipButton.tintColor = textColor
-        tipButton.titleLabel?.font = .systemFont(ofSize: 35, weight: .regular)
-        tipButton.translatesAutoresizingMaskIntoConstraints = false
-
-        return tipButton
-    }()
+    lazy var tipButtonOne: UIButton = makeTipButton(title: "0%")
     
-    lazy var tipButtonTwo: UIButton = {
-        var tipButton = UIButton(type: .system)
-        tipButton.setTitle("10%", for: .normal)
-        tipButton.setTitleColor(textColor, for: .selected)
-        tipButton.tintColor = textColor
-        tipButton.titleLabel?.font = .systemFont(ofSize: 35, weight: .regular)
-        tipButton.translatesAutoresizingMaskIntoConstraints = false
-        
-
-        return tipButton
-    }()
+    lazy var tipButtonTwo: UIButton = makeTipButton(title: "10%")
     
-    lazy var tipButtonThree: UIButton = {
-        var tipButton = UIButton(type: .system)
-        tipButton.setTitle("20%", for: .normal)
-        tipButton.setTitleColor(textColor, for: .normal)
-        tipButton.tintColor = textColor
-        tipButton.titleLabel?.font = .systemFont(ofSize: 35, weight: .regular)
-        tipButton.translatesAutoresizingMaskIntoConstraints = false
-        tipButton.sizeToFit()
-        return tipButton
-    }()
+    lazy var tipButtonThree: UIButton = makeTipButton(title: "20%")
     
     var buttonAndStepperStackView: UIStackView = {
         var buttonAndStepperStackView = UIStackView()
@@ -193,8 +168,102 @@ class ViewController: UIViewController {
     override func viewDidLoad() {
         super.viewDidLoad()
         setupUI()
+        wireUpActions()
+        selectTipButton(tipButtonTwo)
     }
-    
+
+    private func wireUpActions() {
+        calculateButton.addTarget(self, action: #selector(calculateTapped), for: .touchUpInside)
+
+        tipButtonOne.addTarget(self, action: #selector(tipButtonTapped(_:)), for: .touchUpInside)
+        tipButtonTwo.addTarget(self, action: #selector(tipButtonTapped(_:)), for: .touchUpInside)
+        tipButtonThree.addTarget(self, action: #selector(tipButtonTapped(_:)), for: .touchUpInside)
+
+        stepperUI.addTarget(self, action: #selector(stepperChanged), for: .valueChanged)
+
+        let tapGesture = UITapGestureRecognizer(target: self, action: #selector(dismissKeyboard))
+        tapGesture.cancelsTouchesInView = false
+        view.addGestureRecognizer(tapGesture)
+    }
+
+    @objc private func dismissKeyboard() {
+        view.endEditing(true)
+    }
+
+    @objc private func tipButtonTapped(_ sender: UIButton) {
+        selectTipButton(sender)
+
+        switch sender {
+        case tipButtonOne:
+            selectedTipPercent = 0
+        case tipButtonTwo:
+            selectedTipPercent = 10
+        case tipButtonThree:
+            selectedTipPercent = 20
+        default:
+            break
+        }
+    }
+
+    private func makeTipButton(title: String) -> UIButton {
+        let button = UIButton(type: .system)
+        button.translatesAutoresizingMaskIntoConstraints = false
+
+        var config = UIButton.Configuration.plain()
+        config.title = title
+        config.titleTextAttributesTransformer = UIConfigurationTextAttributesTransformer { incoming in
+            var outgoing = incoming
+            outgoing.font = .systemFont(ofSize: 35)
+            return outgoing
+        }
+        config.contentInsets = NSDirectionalEdgeInsets(top: 8, leading: 14, bottom: 8, trailing: 14)
+        config.background.cornerRadius = 8
+        config.baseForegroundColor = textColor
+        config.background.backgroundColor = .clear
+        button.configuration = config
+
+        return button
+    }
+
+    private func selectTipButton(_ selectedButton: UIButton) {
+        [tipButtonOne, tipButtonTwo, tipButtonThree].forEach { button in
+            guard var config = button.configuration else { return }
+            let isSelected = button === selectedButton
+            config.background.backgroundColor = isSelected ? textColor : .clear
+            config.baseForegroundColor = isSelected ? .white : textColor
+            button.configuration = config
+        }
+    }
+
+    @objc private func stepperChanged() {
+        splitCount = Int(stepperUI.value)
+        number2Label.text = "\(splitCount)"
+    }
+
+    @objc private func calculateTapped() {
+        dismissKeyboard()
+
+        guard let billText = textField.text, let billTotal = Double(billText), billTotal > 0 else {
+            showAlert(message: "Please enter a valid bill amount.")
+            return
+        }
+
+        let tipMultiplier = 1.0 + (Double(selectedTipPercent) / 100.0)
+        let totalWithTip = billTotal * tipMultiplier
+        let amountPerPerson = totalWithTip / Double(splitCount)
+
+        let resultsViewController = ResultsViewController()
+        resultsViewController.amountPerPerson = amountPerPerson
+        resultsViewController.splitCount = splitCount
+        navigationController?.pushViewController(resultsViewController, animated: true)
+    }
+
+    private func showAlert(message: String) {
+        let alert = UIAlertController(title: "Invalid Input", message: message, preferredStyle: .alert)
+        alert.addAction(UIAlertAction(title: "OK", style: .default))
+        present(alert, animated: true)
+    }
+
     func setupUI() {
         view.backgroundColor = .white
         
@@ -228,16 +297,8 @@ class ViewController: UIViewController {
             
             selectTipLabel.leadingAnchor.constraint(equalTo: self.view.leadingAnchor, constant: 50),
             choosSplitLabel.leadingAnchor.constraint(equalTo: self.view.leadingAnchor, constant: 50),
-            
-            tipButtonOne.heightAnchor.constraint(equalToConstant: 54),
-            tipButtonOne.widthAnchor.constraint(equalToConstant: 60),
-            
-            tipButtonTwo.heightAnchor.constraint(equalToConstant: 54),
-            
-            tipButtonThree.heightAnchor.constraint(equalToConstant: 54),
-            tipButtonThree.widthAnchor.constraint(equalToConstant: 75),
-            
-            tipButtonOne.widthAnchor.constraint(equalTo: tipButtonTwo.widthAnchor, multiplier: 0.3),
+
+            tipStackView.centerXAnchor.constraint(equalTo: view.centerXAnchor),
             
             stepperUI.widthAnchor.constraint(equalToConstant: 93),
             stepperUI.heightAnchor.constraint(equalToConstant: 29),
